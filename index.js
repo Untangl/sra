@@ -1,143 +1,111 @@
-var Util;
-(function() {
-  // Supporting code for calculating Auto Enrollment Pension Eligibility Status (PRIVATE)
-  var ELIG_AGE = 22;
-  var ENTI_AGE = 16;
-  var MAX_AGE = 75;
-   // Constants describing worker status
-  const ELIG=1, NON_ELIG=2,  ENTI=3,  NON_ENROLLABLE=4;
-  const LOWER_EARNINGS_THRESH=5564;
-  const AUTO_ENROLMENT_TRIGGER=8105;
-  // Supporting code for calculating pensionable age (PRIVATE)
-  var pensionData;
- 
-  // WOMEN ONLY
-  const refDateForWomen60 = new Date(1950,3,6);
-  // WOMEN ONLY
-  // reference date ranges 6 April 1950 - 5 April 1953
-  const refDateEnd = new Date(1950,3,6);//threshold end
-  const refDatePen = new Date(2010,4,6);//expected date
-  // WOMEN ONLY
-  // reference date ranges  6 April 1953 - 5 December 1953
-  const refDateEnd53 = new Date(1953,3,6);//threshold end
-  const refDatePen53 = new Date(2016,6,6);//expected date  
-  // WOMEN ONLY
-  // reference date ranges 6 December 1953 - 5 October 1954
-  const refDateEnd54 = new Date(1953,11,6);//threshold end
-  const refDatePen54 = new Date(2019,2,6);//expected date  
-  //WOMEN ONLY
-  const refDateForWomen66 =  new Date(1954,9,6);//expected date  
-  // cut off date for men who can retire at 65
-  const refDateForMen65 = new Date(1953,11,6);
-  // reference for people born between 6 oct 1954 - 5 april 1968
-  const refDateEnd66 = new Date(1968,3,6);//threshold end
-  const refDatePen66 = new Date(2034,4,6);//threshold end
-  //reference for 1969-1977
-  const refDateEnd66_67 = new Date(1969,3,6); 
-  // reference for 1954
-  const refDateEnd67 = new Date(1977,3,6);//threshold end
-  const refDatePen67 = new Date(2044,4,6);//expected window.alert();date  
-  const refDateEndFinal = new Date(1978,3,6);//date for 68 onward SPA 
-  var prime = [
-   {startDate: refDateForWomen60, calcAge:function(dob){ return new Date(dob.getFullYear()+60,dob.getMonth(), dob.getDate()) }},
-   {startDate: refDateEnd,        PensionDate:refDatePen,   Window:36,  MnthGap:2},
-   {startDate: refDateEnd53,      PensionDate:refDatePen53, Window:9,   MnthGap:4},
-   {startDate: refDateEnd54,      PensionDate:refDatePen54, Window:11,  MnthGap:2},
-   {startDate: refDateForWomen66, calcAge:function(dob){ return new Date(dob.getFullYear()+66,dob.getMonth(), dob.getDate()) }},
-   {startDate: refDateEnd66,      PensionDate:refDatePen66, Window:13,  MnthGap:2},
-   {startDate: refDateEnd66_67,   calcAge:function(dob){ return new Date(dob.getFullYear()+67,dob.getMonth(), dob.getDate()) }},
-   {startDate: refDateEnd67,      PensionDate:refDatePen67, Window:13,  MnthGap:2},
-   {startDate: refDateEndFinal,   calcAge:function(dob){ return new Date(dob.getFullYear()+68,dob.getMonth(), dob.getDate()) }}   
-  ];
-  var special_male_case = 
-   {startDate: refDateForMen65,calcAge:function(dob){ return new Date(dob.getFullYear()+65,dob.getMonth(), dob.getDate()) }};
+/*
+ * State Retirement Age library
+ *
+ */
 
-  function InitialisePensionData() {
+'use strict';
 
-    if (pensionData==null) {
-      var pensionRulesFemale = [[prime[0]]];
-      var pensionRulesMale   = [[special_male_case]];
-      
-      // initialise the womens array for usage
-      prime.forEach(function(p) {
-        if (p.calcAge != null)
-          pensionRulesFemale.push([p]);
-        else
-          pensionRulesFemale.push(calculateRanges1(p.startDate, p.PensionDate, p.Window, p.MnthGap));
-      });
-      // initialise the mens array - which is a special initial rule followed by the rules from the female table 
-      // after retirement ages have converged.
-      pensionRulesMale = pensionRulesMale.concat(pensionRulesFemale.slice(3));
+var debug = require('debug')('sra:main');
+var util  = require('util');
+var _     = require('lodash');
+var moment = require('moment');
 
-      pensionData = {'male':pensionRulesMale, 'female':pensionRulesFemale};
-    }
-    return pensionData;
-  }
+/** Lookup tables based on the 5 Government tables. Given the start dates the algorithm
+ * starts at the end (oldest) part of the table and works back to find the correct
+ * start date. The defined calcSRD method then calculates the retirement date based
+ * on the different algorithms in the tables.
+ *
+ * Lookup table
+ *
+ * startDate - start of the lookup
+ * calcSRD - function calculated pension date
+ */
+var l1 = [
+  //WOMEN
+  //before 6/4/50 women retire at 60 so set start to 1900
+  {startDate: '1900-04-06', calcSRD:function(dob){ return moment(dob).add(60,'y');} },
+  // reference date ranges 6 April 1950 - 5 April 1953 Table 1
+  {startDate: '1950-04-06', calcSRD:function(dob){return calcTables1235(dob, '1950-04-06', '2010-05-06', 2)} },
+// reference date ranges  6 April 1953 - 5 December 1953 Table 2
+  {startDate: '1953-04-06', calcSRD:function(dob){return calcTables1235(dob, '1953-04-06', '2016-07-06', 4)} }
+];
+var l2 = [
+  //MEN
+  //before 6/12/53 men retire at 65 so set start to 1900
+  {startDate: '1900-04-06', calcSRD:function(dob){ return moment(dob).add(65,'y');} }
+];
+var l3 = [
+  //BOTH
+  // reference date ranges 6 December 1953 - 5 October 1954 Table 3
+  {startDate: '1953-12-06', calcSRD:function(dob){return calcTables1235(dob, '1953-12-06', '2019-03-06', 2)}},
+  // end of Table 3 - retire at 66
+  {startDate: '1954-10-06', calcSRD:function(dob){ return moment(dob).add(66,'y');} },
+  // reference date ranges 6 April 1960 - 5 March 1961 Table 4
+  {startDate: '1960-04-06', calcSRD:function(dob){return calcTables4(dob, '1960-04-06')}},
+  // end of Table 4 - retire at 67
+  {startDate: '1961-03-06', calcSRD:function(dob){ return moment(dob).add(67,'y');} },
+  // reference date ranges 6 April 1977 - 5 April 1978 Table 5
+  {startDate: '1977-04-06', calcSRD:function(dob){return calcTables1235(dob, '1977-04-06', '2044-05-06', 2)}},
+  // end of Table 5 - retire at 68
+  {startDate: '1978-04-06', calcSRD:function(dob){ return moment(dob).add(68,'y');} }
+];
+//create a single table for each gender
+var female = _.union(l1,l3);
+var male = _.union(l2,l3);
 
-  /**** This is a test function with a variation of calculate Ranges ****/
+/*
+Non trivial retirement date calculations!
+ */
 
-  function calculateRanges1( threshDate, PenBegin,threshWindow, mnthGap) {
-    // set up the lists to hold the dates and add the values for the first elements 
-    var resultArray = [{startDate:threshDate , penDate: PenBegin}];
-    var lastTimeDate = threshDate;
-    var lastTimePension = PenBegin;
-
-    for (let i=1;i<threshWindow;i++) {
-      var tempDateEnd; // this will hold the temp date that will eventually be used for the comparison
-      var tempDatePen;
-
-      // check for the month of december and update year value  
-      if (lastTimeDate.getMonth() == 11)
-        tempDateEnd = new Date(lastTimeDate.getFullYear()+1,0, lastTimeDate.getDate());
-      else // add one month to the current month and store in temp end
-        tempDateEnd = new Date(lastTimeDate.getFullYear(),lastTimeDate.getMonth()+1, lastTimeDate.getDate());
-
-      //move the pension date along by the required number of months
-      var newMonth = lastTimePension.getMonth() + mnthGap;
-      if (newMonth > 11)
-        tempDatePen = new Date(lastTimePension.getFullYear()+1,newMonth-12, lastTimePension.getDate());
-      else
-        tempDatePen = new Date(lastTimePension.getFullYear(),newMonth, lastTimePension.getDate());
-
-      // return the date 
-      resultArray.push({startDate:tempDateEnd , penDate: tempDatePen});
-      lastTimeDate = tempDateEnd;
-      lastTimePension = tempDatePen;
-    }
-    return resultArray;
-  }
-  
-var duPensionDate = function(dob,isMale) {
-
-	var pensionTable = isMale ? pensionData.male : pensionData.female;
-
-	// now we have the tables lets traverse over them
-	var pentabLen  = pensionTable.length;
-
-	// Fast simple first test to see whether the transition rules apply
-	if (dob < pensionTable[0][0].startDate)
-		return pensionTable[0][0].calcAge(dob);
-
-	if (dob >= pensionTable[pentabLen-1][0].startDate)
-		return pensionTable[pentabLen-1][0].calcAge(dob);
-
-	// begin traversing the top level pension table
-	for (let i=pentabLen-1; i>0;i--) {
-		var penRuleLen = pensionTable[i].length;
-
-		// now iterate through the individual table and match the start dates and pension dates
-		if (dob >= pensionTable[i][0].startDate) {
-			if (penRuleLen==1)
-				return pensionTable[i][0].calcAge(dob);
-			else {
-				for(let j=penRuleLen-1;j>0;j--)
-					if(dob >= pensionTable[i][j-1].startDate)
-						return pensionTable[i][j-1].penDate;
-			}
-		}
-		// test for the last case in the table which will return a dob as + 68
-		//return pensionTable[i][0].penDate;// return zero if none of the conditions are met as the last case
-	}
-	rb.debug.error("ERROR: pensionAge - input object array, invalid condition");
+/**
+ * calcTables1235 - calculation for tables 1, 2 3 and 5
+ * @param dob {moment} - date of birth
+ * @param startDate {ISO string} - start date for this calculation table segment
+ * @param pensionDate {ISO string} - corresponding pension start date
+ * @param monthGap {Integer} - the number of months between each change in retirement age
+ * @returns {moment} - retirement date
+ */
+var calcTables1235 = function(dob, startDate, pensionDate, monthGap){
+  //calculate the number of months from the start of the table (NB rounds down)
+  var dur = dob.diff(moment(startDate), 'months');
+  debug("Dur is ", dur," for dob ", dob.toDate(), " dur * monthGap ", dur * monthGap, " pension date ");
+  var localDate = moment(pensionDate);
+  return localDate.add(dur * monthGap, 'months');
 };
-		
+
+/**
+ * calcTables4 - calculation for table 4
+ * @param dob {moment} - date of birth
+ * @param startDate {ISO string} - start date for this calculation table segment
+ * @returns {moment} - retirement date
+ */
+
+var calcTables4 = function(dob, startDate){
+  //calculate the number of months from the start of the table (NB rounds down)
+  var dur = dob.diff(moment(startDate), 'months');
+  return moment(dob).add(66,'years').add(dur+1,'months');
+};
+
+
+/**
+ * sra - state retirement age calculation
+ * @param dob {Date} - date of birth as JavaScript Date object
+ * @param gender {string} - either 'male' or 'female'
+ * @returns {Date} - date when person reaches state retirement age
+ */
+var sra = function(dob, gender) {
+  var mDob = moment(dob);
+  var pensionTable = (gender === 'male') ? male : female;
+  //iterate over table from youngest to oldest rows
+  var result;
+  _.forEachRight(pensionTable, function (row) {
+    if (mDob.isSameOrAfter(moment(row.startDate))) {
+      result = row.calcSRD(mDob).toDate();
+      return false;
+    }
+  });
+  return result;
+};
+
+module.exports = sra;
+
