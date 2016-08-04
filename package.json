@@ -1,9 +1,10 @@
 {
   "name": "sra",
-  "description": "UK State Retirement Age calculation module",
-  "version": "0.0.1",
+  "description": "UK State Pension/Retirement Age calculation module",
+  "version": "0.1.0",
   "keywords": [
     "retirement",
+    "pension",
     "uk",
     "age"
   ],
@@ -23,10 +24,11 @@
   "dependencies": {
     "debug": "^2.2.0",
     "lodash": "^4.0.0",
-    "moment": "^2.10.7"
+    "moment": "^2.10.7",
+    "moment-precise-range-plugin": "^1.2.0"
   },
   "devDependencies": {
-    "data-driven":"~1.2.1",
+    "data-driven": "~1.2.1",
     "grunt": "~0.4.5",
     "grunt-contrib-jshint": "~0.10.0",
     "grunt-env": "~0.4.1",
@@ -40,4 +42,3 @@
     "test": "grunt test"
   }
 }
-

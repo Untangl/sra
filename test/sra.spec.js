@@ -132,16 +132,23 @@ var testData = [
 
 ];
 
-describe('SRA library unit tests', function () {
+describe('SRA library unit tests - date', function () {
   datadriven(testData, function(){
     it('Gender: {gender} DoB: {dob} SRA: {expectedSRA}', function(ctx){
 
       var r = sra(moment(ctx.dob).toDate(), ctx.gender);
-      // debug('***RRR***', r);
-      moment(r).format('YYYY-MM-DD').should.eql(ctx.expectedSRA);
+      //debug('***AGE***', r.age);
+      moment(r.date).format('YYYY-MM-DD').should.eql(ctx.expectedSRA);
       // debug('r: ', util.inspect(r, false, null));
 
     })
   });
 });
 
+describe('SRA library unit tests - age', function(){
+  it('Gender: female DoB: 1951-08-05 SRA: 2012-11-06', function() {
+    var r = sra(moment('1951-08-05').toDate(), 'female');
+    r.age.should.eql([61,3,1]);
+  });
+
+});
