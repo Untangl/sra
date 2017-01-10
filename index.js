@@ -102,6 +102,10 @@ var sra = function(dob, gender) {
     dob = new Date();
   }
   var mDob = moment(dob);
+  if (mDob.isBefore(moment('1900-04-06'))) {
+    //silly date - set to earliest supported date
+    mDob = moment('1900-04-06');
+  }
   var pensionTable = (gender === 'male') ? male : female;
   //iterate over table from youngest to oldest rows
   var spd;
@@ -111,6 +115,7 @@ var sra = function(dob, gender) {
       return false;
     }
   });
+
   var ao = moment.preciseDiff(spd, mDob, true);
 
   return {date:spd.toDate(), age:[ao.years, ao.months, ao.days]};

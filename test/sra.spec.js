@@ -132,6 +132,14 @@ var testData = [
 
 ];
 
+describe('SRA library unit tests - silly (old) date should be reset to 1900-04-06', function(){
+  it('Gender: female DoB: 1066-08-05 SRA: 2012-11-06', function() {
+    var r = sra(moment('1066-08-05').toDate(), 'female');
+    r.age.should.eql([60,0,0]);
+  });
+
+});
+
 describe('SRA library unit tests - date', function () {
   datadriven(testData, function(){
     it('Gender: {gender} DoB: {dob} SRA: {expectedSRA}', function(ctx){
@@ -150,5 +158,4 @@ describe('SRA library unit tests - age', function(){
     var r = sra(moment('1951-08-05').toDate(), 'female');
     r.age.should.eql([61,3,1]);
   });
-
 });

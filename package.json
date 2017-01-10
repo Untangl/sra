@@ -1,7 +1,7 @@
 {
   "name": "sra",
   "description": "UK State Pension/Retirement Age calculation module",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "keywords": [
     "retirement",
     "pension",

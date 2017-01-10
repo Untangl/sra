@@ -7,7 +7,7 @@ $ npm install sra
 ```
 ## Usage
 Simply invoke the exported function passing it
- * date of birth - as a JavaScript Date object (if missing or not a Date current date will be used)
+ * date of birth - as a JavaScript Date object (if missing or not a Date current date will be used; if before 1900-04-06 will be reset to 1900-04-06)
  * gender - enumerated string 'male or 'female' (if missing or illegal value supplied will be set to 'female')
  
  and get back an object with properties:
